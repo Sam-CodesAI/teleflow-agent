@@ -1,0 +1,45 @@
+{
+  "name": "sam-codeai-telegram-bot",
+  "version": "1.0.0",
+  "description": "Autonomous Telegram AI Lead Qualifier & CRM Bridge — 24/7 conversational lead qualification, grounded intent analysis, and automated database sync.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "node --test dist/tests/**/*.test.js || tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "telegram-bot",
+    "ai-agent",
+    "lead-qualification",
+    "agentic-workflow",
+    "crm-automation",
+    "typescript",
+    "supabase",
+    "serverless"
+  ],
+  "author": "Samarth Nimangre <samarthknimangre@gmail.com> (https://sam-codes.vercel.app)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sam-CodesAI/sam-codeai-telegram-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sam-CodesAI/sam-codeai-telegram-bot/issues"
+  },
+  "homepage": "https://sam-codes.vercel.app",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
