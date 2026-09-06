@@ -1,6 +1,6 @@
-# Contributing to Sam CodeAI Telegram Bot
+# Contributing to Teleflow Agent
 
-Thank you for your interest in contributing to the **Sam CodeAI Telegram Bot**! This project is an autonomous conversational agent designed for deterministic, grounded lead qualification and real-time CRM ingestion.
+Thank you for your interest in contributing to **Teleflow Agent**! This project is an autonomous conversational agent designed for deterministic, grounded lead qualification, dynamic scheduling, and real-time CRM ingestion.
 
 ---
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing to the **Sam CodeAI Telegram Bot**! 
 ### 2. Setup
 ```bash
 # Clone repository
-git clone https://github.com/Sam-CodesAI/sam-codeai-telegram-bot.git
-cd sam-codeai-telegram-bot
+git clone https://github.com/Sam-CodesAI/teleflow-agent.git
+cd teleflow-agent
 
 # Install dependencies
 npm install
@@ -46,8 +46,9 @@ npm test
    ```
 2. **Follow Conventional Commits:**
    - `feat(agent): add multi-language support`
+   - `feat(scheduler): integrate google meet links`
    - `fix(client): resolve rate limiter race condition`
-   - `docs(readme): add docker-compose instructions`
+   - `docs(readme): update deployment topology`
 3. **Push and Open a Pull Request:**
    Every PR triggers the automated GitHub Actions CI pipeline to verify builds and test coverage.
 

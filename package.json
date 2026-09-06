@@ -1,15 +1,19 @@
 {
-  "name": "sam-codeai-telegram-bot",
-  "version": "1.0.0",
-  "description": "Autonomous Telegram AI Lead Qualifier & CRM Bridge — 24/7 conversational lead qualification, grounded intent analysis, and automated database sync.",
+  "name": "teleflow-agent",
+  "version": "1.2.0",
+  "description": "Autonomous Telegram Lead Qualification Agent & Edge CRM Router — State-machine reasoning, interactive inline keyboards, Cal.com scheduling bridge, and multi-sink synchronization.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "poll": "tsx src/index.ts --poll",
     "test": "node --test dist/tests/**/*.test.js || tsx --test tests/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docker:build": "docker build -t teleflow-agent .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env teleflow-agent"
   },
   "keywords": [
     "telegram-bot",
@@ -17,6 +21,9 @@
     "lead-qualification",
     "agentic-workflow",
     "crm-automation",
+    "cal-com-integration",
+    "interactive-keyboards",
+    "edge-runtime",
     "typescript",
     "supabase",
     "serverless"
@@ -25,10 +32,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Sam-CodesAI/sam-codeai-telegram-bot.git"
+    "url": "git+https://github.com/Sam-CodesAI/teleflow-agent.git"
   },
   "bugs": {
-    "url": "https://github.com/Sam-CodesAI/sam-codeai-telegram-bot/issues"
+    "url": "https://github.com/Sam-CodesAI/teleflow-agent/issues"
   },
   "homepage": "https://sam-codes.vercel.app",
   "devDependencies": {

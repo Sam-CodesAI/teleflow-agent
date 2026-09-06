@@ -1,5 +1,7 @@
 /**
- * Core Type Definitions for Sam CodeAI Telegram Bot
+ * Teleflow Agent — Type Definitions
+ * Strict TypeScript schemas for autonomous Telegram agent, inline buttons,
+ * callback queries, CRM routing, and appointment scheduling.
  */
 
 export type ConversationPhase = "INITIAL" | "DISCOVERY" | "QUALIFICATION" | "CONFIRMED";
@@ -21,6 +23,16 @@ export interface TelegramChat {
   type: "private" | "group" | "supergroup" | "channel";
 }
 
+export interface InlineKeyboardButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
+}
+
+export interface InlineKeyboardMarkup {
+  inline_keyboard: InlineKeyboardButton[][];
+}
+
 export interface TelegramMessage {
   message_id: number;
   from?: TelegramUser;
@@ -28,12 +40,23 @@ export interface TelegramMessage {
   date: number;
   text?: string;
   reply_to_message?: TelegramMessage;
+  reply_markup?: InlineKeyboardMarkup;
+}
+
+export interface TelegramCallbackQuery {
+  id: string;
+  from: TelegramUser;
+  message?: TelegramMessage;
+  inline_message_id?: string;
+  chat_instance?: string;
+  data?: string;
 }
 
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 }
 
 export interface LeadDraft {
@@ -43,6 +66,9 @@ export interface LeadDraft {
   problemBrief?: string;
   timeline?: string;
   estimatedScope?: string;
+  budgetRange?: string;
+  confidenceScore?: number;
+  sourceChannel?: string;
 }
 
 export interface TelegramSession {
@@ -63,6 +89,8 @@ export interface AgentTurnResult {
   leadQualified: boolean;
   inquiryId?: string;
   latencyMs: number;
+  replyMarkup?: InlineKeyboardMarkup;
+  bookingUrl?: string;
 }
 
 export interface UserContext {
@@ -77,6 +105,7 @@ export interface InquiryPayload {
   contactMethod: string;
   serviceRequested: string;
   message: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface KnowledgeItem {
@@ -84,4 +113,18 @@ export interface KnowledgeItem {
   question: string;
   keywords: string[];
   answer: string;
+}
+
+export interface SchedulingOptions {
+  name?: string;
+  email?: string;
+  notes?: string;
+  calBaseUrl?: string;
+}
+
+export interface CRMDispatchResult {
+  sink: string;
+  success: boolean;
+  error?: string;
+  recordId?: string;
 }
