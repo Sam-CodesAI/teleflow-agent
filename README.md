@@ -211,8 +211,9 @@ When a lead reaches `CONFIRMED` phase, Teleflow dispatches an outbound event to 
 
 * **Portfolio:** [sam-codes.vercel.app](https://sam-codes.vercel.app)
 * **GitHub:** [@Sam-CodesAI](https://github.com/Sam-CodesAI)
-* **LinkedIn:** [Samarth Nimangre](https://www.linkedin.com/in/samarth-nimangre-687265324/)
-* **X / Twitter:** [@Tempest_Store](https://x.com/Tempest_Store)
+* **Telegram:** [@samarth_master_bot](https://t.me/samarth_master_bot) / [@Samarth1306](https://t.me/Samarth1306)
+* **LinkedIn:** [Samarth Nimangre](https://www.linkedin.com/in/samarth-nimangre-0a3b02421/)
+* **X / Twitter:** [@SamCodesAI](https://x.com/SamCodesAI)
 * **Instagram:** [@samarth.buildss](https://www.instagram.com/samarth.buildss)
 
 ---
