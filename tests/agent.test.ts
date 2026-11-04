@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { LeadQualifierAgent } from "../src/agent.js";
+import { LeadQualifierAgent, SessionLruCache } from "../src/agent.js";
 import { buildSchedulingUrl } from "../src/scheduler.js";
 import { CRMDispatcher } from "../src/crm.js";
 import { InquiryPayload } from "../src/types.js";
@@ -122,3 +122,128 @@ test("CRM Dispatcher Dry Run", async (t) => {
     assert.strictEqual(results[0].success, true);
   });
 });
+
+test("SessionLruCache In-Memory Eviction & MRU Ordering", async (t) => {
+  await t.test("Evicts oldest key when capacity is exceeded", () => {
+    const cache = new SessionLruCache<string>(2);
+    cache.set("a", "1");
+    cache.set("b", "2");
+    assert.strictEqual(cache.size, 2);
+    assert.strictEqual(cache.get("a"), "1");
+
+    // Adding 'c' should evict 'b' since 'a' was recently accessed
+    cache.set("c", "3");
+    assert.strictEqual(cache.size, 2);
+    assert.strictEqual(cache.has("b"), false);
+    assert.strictEqual(cache.get("a"), "1");
+    assert.strictEqual(cache.get("c"), "3");
+  });
+});
+
+test("Durable Supabase Telegram Sessions Backing", async (t) => {
+  function createMockSupabase(initialRecords: Record<string, any> = {}) {
+    const store = new Map<string, any>(Object.entries(initialRecords));
+    const mockClient = {
+      from: (table: string) => {
+        assert.strictEqual(table, "telegram_sessions");
+        return {
+          select: (_cols?: string) => ({
+            eq: (field: string, val: string) => ({
+              maybeSingle: async () => {
+                assert.strictEqual(field, "chat_id");
+                const record = store.get(val);
+                return { data: record || null, error: null };
+              },
+            }),
+          }),
+          upsert: async (payload: any) => {
+            store.set(String(payload.chat_id), payload);
+            return { data: [payload], error: null };
+          },
+          delete: () => ({
+            eq: async (field: string, val: string) => {
+              assert.strictEqual(field, "chat_id");
+              store.delete(val);
+              return { data: null, error: null };
+            },
+          }),
+        };
+      },
+      _store: store,
+    };
+    return mockClient;
+  }
+
+  await t.test("Loads existing session from Supabase on LRU cache miss", async () => {
+    const mockSupabase = createMockSupabase({
+      "123456": {
+        chat_id: "123456",
+        username: "founder_mark",
+        first_name: "Mark",
+        phase: "QUALIFICATION",
+        messages_count: 2,
+        lead_draft: {
+          serviceRequested: "AI Chatbots & Intelligent Agents",
+        },
+        last_active_at: new Date().toISOString(),
+      },
+    });
+
+    const agent = new LeadQualifierAgent({
+      supabaseClient: mockSupabase as any,
+    });
+    assert.strictEqual(agent.isSupabaseConfigured, true);
+
+    // Initial cache is empty
+    assert.strictEqual(agent.cacheSize, 0);
+
+    // Turn execution should load from Supabase and hydrate LRU cache
+    const res = await agent.executeTurn(123456, "We need it in 2 weeks");
+    assert.strictEqual(agent.cacheSize, 1);
+    assert.strictEqual(res.phase, "QUALIFICATION");
+    assert.strictEqual(res.leadDraft.serviceRequested, "AI Chatbots & Intelligent Agents");
+    assert.strictEqual(res.leadDraft.timeline, "2 weeks");
+  });
+
+  await t.test("Write-through persists updated session state to Supabase", async () => {
+    const mockSupabase = createMockSupabase();
+    const agent = new LeadQualifierAgent({
+      supabaseClient: mockSupabase as any,
+    });
+
+    const res = await agent.executeTurn("998877", "/start", {
+      username: "alice_dev",
+      firstName: "Alice",
+    });
+    assert.strictEqual(res.phase, "DISCOVERY");
+
+    // Supabase store should now contain the updated session
+    const stored = mockSupabase._store.get("998877");
+    assert.ok(stored);
+    assert.strictEqual(stored.chat_id, "998877");
+    assert.strictEqual(stored.username, "alice_dev");
+    assert.strictEqual(stored.phase, "DISCOVERY");
+  });
+
+  await t.test("ResetSession removes session from cache and Supabase", async () => {
+    const mockSupabase = createMockSupabase({
+      "55555": {
+        chat_id: "55555",
+        phase: "CONFIRMED",
+      },
+    });
+    const agent = new LeadQualifierAgent({
+      supabaseClient: mockSupabase as any,
+    });
+
+    // Hydrate
+    await agent.loadSession("55555");
+    assert.strictEqual(agent.cacheSize, 1);
+
+    // Reset
+    await agent.resetSessionAsync("55555");
+    assert.strictEqual(agent.cacheSize, 0);
+    assert.strictEqual(mockSupabase._store.has("55555"), false);
+  });
+});
+
