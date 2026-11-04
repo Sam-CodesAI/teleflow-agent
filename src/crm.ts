@@ -81,25 +81,38 @@ export class CRMDispatcher {
     }
 
     try {
-      const { data, error } = await this.supabase
+      const basePayload: Record<string, any> = {
+        name: payload.name,
+        email: payload.email,
+        contact_method: payload.contactMethod,
+        service_requested: payload.serviceRequested,
+        message: payload.message,
+        status: "NEW",
+        user_agent: "telegram_agent",
+        private_notes: `[Lead Source: telegram_agent | Chat: ${payload.metadata?.chatId || "direct"}]`,
+      };
+
+      // Try inserting with source column first (v2 schema)
+      let res = await this.supabase
         .from("inquiries")
-        .insert({
-          name: payload.name,
-          email: payload.email,
-          contact_method: payload.contactMethod,
-          service_requested: payload.serviceRequested,
-          message: payload.message,
-          status: "NEW",
-          source: "telegram_agent",
-        })
+        .insert({ ...basePayload, source: "telegram_agent" })
         .select("id")
         .single();
 
-      if (error) {
-        return { sink: "supabase", success: false, error: error.message };
+      // If source column does not exist (v1 schema), gracefully retry without source
+      if (res.error && res.error.message.includes("source")) {
+        res = await this.supabase
+          .from("inquiries")
+          .insert(basePayload)
+          .select("id")
+          .single();
       }
 
-      return { sink: "supabase", success: true, recordId: data?.id };
+      if (res.error) {
+        return { sink: "supabase", success: false, error: res.error.message };
+      }
+
+      return { sink: "supabase", success: true, recordId: res.data?.id };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { sink: "supabase", success: false, error: msg };
