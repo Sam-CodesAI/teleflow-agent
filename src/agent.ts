@@ -174,13 +174,15 @@ export class LeadQualifierAgent {
                 : undefined,
               handleOrEmail: context?.username ? `@${context.username}` : undefined,
             },
+            inquiryId: (data.lead_draft as any)?.inquiryId,
             lastActiveAt: data.last_active_at ? new Date(data.last_active_at).getTime() : Date.now(),
           };
           this.sessions.set(key, session);
           return session;
         }
-      } catch {
+      } catch (err) {
         // Fall back gracefully to fresh session
+        console.warn(`[teleflow-agent] Failed loading session ${key} from Supabase:`, err);
       }
     }
 
@@ -263,7 +265,10 @@ export class LeadQualifierAgent {
             last_name: context?.lastName ?? null,
             phase: session.phase,
             messages_count: session.messagesCount,
-            lead_draft: session.leadDraft ?? {},
+            lead_draft: {
+              ...(session.leadDraft ?? {}),
+              ...(session.inquiryId ? { inquiryId: session.inquiryId } : {}),
+            },
             last_active_at: new Date(session.lastActiveAt).toISOString(),
           },
           { onConflict: "chat_id" }
@@ -525,7 +530,10 @@ export class LeadQualifierAgent {
           session.leadDraft.problemBrief || "Direct qualification"
         }\n• Timeline: ${session.leadDraft.timeline}`,
       });
-      if (typeof res === "string") inquiryId = res;
+      if (typeof res === "string") {
+        inquiryId = res;
+        session.inquiryId = res;
+      }
     }
 
     await this.persistSession(session, context);

@@ -245,5 +245,59 @@ test("Durable Supabase Telegram Sessions Backing", async (t) => {
     assert.strictEqual(agent.cacheSize, 0);
     assert.strictEqual(mockSupabase._store.has("55555"), false);
   });
+
+  await t.test("Gracefully handles Supabase 500 error / outage on loadSession without dropping turn", async () => {
+    const errorSupabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: null,
+              error: { message: "Internal server error: 500 network timeout", code: "500" },
+            }),
+          }),
+        }),
+        upsert: async () => {
+          throw new Error("Supabase write timeout");
+        },
+      }),
+    };
+
+    const agent = new LeadQualifierAgent({
+      supabaseClient: errorSupabase as any,
+    });
+
+    // Should not throw; should gracefully initialize a fresh session
+    const res = await agent.executeTurn("chat_err_123", "Hello, I need an AI agent", {
+      username: "resilient_user",
+      firstName: "Resilient",
+    });
+
+    assert.strictEqual(res.phase, "DISCOVERY");
+    assert.match(res.replyText, /Resilient/);
+    assert.strictEqual(agent.cacheSize, 1);
+  });
+
+  await t.test("Lead finalization persists inquiryId into session lead_draft", async () => {
+    const mockSupabase = createMockSupabase();
+    const agent = new LeadQualifierAgent({
+      supabaseClient: mockSupabase as any,
+      onInquiryQualified: async () => "inq-final-777",
+    });
+
+    await agent.executeTurn("990011", "/start", { username: "charlie" });
+    await agent.executeCallbackQuery("990011", "svc:ai_chatbot", { username: "charlie" });
+    const finalRes = await agent.executeCallbackQuery("990011", "time:urgent", { username: "charlie" });
+
+    assert.strictEqual(finalRes.leadQualified, true);
+    assert.strictEqual(finalRes.inquiryId, "inq-final-777");
+
+    const session = agent.getSession("990011");
+    assert.strictEqual(session.inquiryId, "inq-final-777");
+
+    const storedInDb = mockSupabase._store.get("990011");
+    assert.ok(storedInDb);
+    assert.strictEqual(storedInDb.lead_draft.inquiryId, "inq-final-777");
+  });
 });
 
