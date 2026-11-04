@@ -1,6 +1,6 @@
 {
   "name": "teleflow-agent",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "description": "Autonomous Telegram Lead Qualification Agent & Edge CRM Router — State-machine reasoning, interactive inline keyboards, Cal.com scheduling bridge, and multi-sink synchronization.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
