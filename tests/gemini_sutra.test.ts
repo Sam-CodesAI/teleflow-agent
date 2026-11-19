@@ -96,7 +96,7 @@ test("LeadQualifierAgent Grounded with SutraDB + Gemini", async (t) => {
 
     const mockGemini: GeminiClient = {
       isConfigured: true,
-      generateTurn: async (params) => {
+      generateTurn: async (params: { prompt: string; contextChunks?: string[]; history?: unknown[] }) => {
         capturedContext = params.contextChunks;
         return {
           replyText: "Yes! Samarth built VaniEdge Voice Platform with sub-second carrier audio streaming.",
