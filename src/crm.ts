@@ -136,7 +136,7 @@ export class CRMDispatcher {
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "User-Agent": "Teleflow-Agent/1.2.0",
+        "User-Agent": "Teleflow-Agent/2.0.0",
       };
 
       if (this.webhookSecret) {

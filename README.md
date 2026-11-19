@@ -167,7 +167,7 @@ docker compose up -d
 Check health status:
 ```bash
 curl http://localhost:3000/health
-# {"status":"online","agent":"teleflow-agent","version":"1.2.0"}
+# {"status":"online","agent":"teleflow-agent","version":"2.0.0"}
 ```
 
 ---

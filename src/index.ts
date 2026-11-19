@@ -7,6 +7,7 @@
  */
 
 import http from "node:http";
+import crypto from "node:crypto";
 import { TelegramClient } from "./client.js";
 import { LeadQualifierAgent } from "./agent.js";
 import { CRMDispatcher } from "./crm.js";
@@ -21,11 +22,28 @@ export * from "./crm.js";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const MODE = process.argv.includes("--poll") || process.env.TELEFLOW_MODE === "polling" ? "polling" : "webhook";
+const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1MB bounded ceiling
+
+/**
+ * Validates Telegram webhook secret token using constant-time comparison.
+ */
+export function isSecretTokenValid(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 /**
  * Creates the HTTP Webhook Server for Teleflow Agent.
  */
-export function createBotServer(agent?: LeadQualifierAgent, client?: TelegramClient) {
+export function createBotServer(
+  agent?: LeadQualifierAgent,
+  client?: TelegramClient,
+  webhookSecret?: string
+) {
+  const secretToken = webhookSecret ?? process.env.TELEGRAM_WEBHOOK_SECRET;
   const crm = new CRMDispatcher();
   const botClient = client || new TelegramClient();
   const botAgent =
@@ -46,7 +64,7 @@ export function createBotServer(agent?: LeadQualifierAgent, client?: TelegramCli
         JSON.stringify({
           status: "online",
           agent: "teleflow-agent",
-          version: "1.2.0",
+          version: "2.0.0",
           timestamp: new Date().toISOString(),
         })
       );
@@ -55,9 +73,11 @@ export function createBotServer(agent?: LeadQualifierAgent, client?: TelegramCli
 
     // Webhook POST
     if (req.method === "POST" && (req.url === "/webhook" || req.url === "/api/webhook" || req.url === "/")) {
-      if (WEBHOOK_SECRET) {
-        const secret = req.headers["x-telegram-bot-api-secret-token"];
-        if (secret !== WEBHOOK_SECRET) {
+      if (secretToken) {
+        const secret = typeof req.headers["x-telegram-bot-api-secret-token"] === "string"
+          ? req.headers["x-telegram-bot-api-secret-token"]
+          : undefined;
+        if (!isSecretTokenValid(secret, secretToken)) {
           res.writeHead(401, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Unauthorized token" }));
           return;
@@ -65,11 +85,21 @@ export function createBotServer(agent?: LeadQualifierAgent, client?: TelegramCli
       }
 
       let body = "";
-      req.on("data", (chunk) => {
+      let exceeded = false;
+
+      req.on("data", (chunk: Buffer | string) => {
+        if (exceeded) return;
         body += chunk;
+        if (Buffer.byteLength(body, "utf8") > MAX_PAYLOAD_BYTES) {
+          exceeded = true;
+          res.writeHead(413, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Payload Too Large: exceeds 1MB limit" }));
+          req.destroy();
+        }
       });
 
       req.on("end", async () => {
+        if (exceeded) return;
         try {
           const update = JSON.parse(body) as TelegramUpdate;
           await processTelegramUpdate(update, botAgent, botClient);
