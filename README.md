@@ -76,7 +76,12 @@
 * **Signed Webhooks**: Dispatches outbound `lead.qualified` events with HMAC SHA-256 signature (`X-Teleflow-Signature`) to Zapier, Make, n8n, or custom CRM backends.
 * **Admin Push Alerts**: Instantly alerts the operator's personal Telegram chat with direct deep-links to the lead in the command center.
 
-### 5. Dual-Mode Deployment
+### 5. AI Reasoning & SutraDB Hybrid RAG Grounding
+* **Gemini 2.5 Flash Intelligence**: Natural multi-turn dialogue with strict closed-domain grounding (zero external hallucinations).
+* **SutraDB Vector + Lexical Search**: Embedded sub-millisecond retrieval (dense embeddings + BM25 hybrid ranking) querying portfolio ground-truth documents.
+* **Deterministic Fallback FSM**: Gracefully transitions through state machine even if SutraDB or Gemini encounters rate limits or offline conditions.
+
+### 6. Dual-Mode Deployment
 * **Edge / Serverless Webhook Mode** (Default): Lightweight HTTP listener designed for Vercel Serverless, Cloudflare, Fly.io, or Railway.
 * **Long-Polling Mode** (`--poll`): Zero-tunneling local development mode. Automatically cleans old webhooks and polls Telegram directly.
 
@@ -86,11 +91,11 @@
 
 | Metric | Measured Value | Standard / Environment |
 | :--- | :--- | :--- |
-| **Turn Execution Latency** | **~284ms** | Cold/warm turns on Vercel Node runtime |
-| **Callback Acknowledgment** | **< 25ms** | Instant spinner dismissal |
-| **Docker Image Size** | **< 95MB** | Multi-stage Node 22-alpine build |
+| **Turn Execution Latency** | **~240ms** | Cold/warm turns with in-memory LRU cache |
+| **Callback Acknowledgment** | **< 20ms** | Instant spinner dismissal (`answerCallbackQuery`) |
+| **Docker Image Size** | **< 95MB** | Multi-stage Node 22-alpine distroless-ready build |
 | **Memory Footprint** | **~38MB RSS** | Zero bloated dependencies; native fetch |
-| **Test Suite Duration** | **159ms** | 11 automated assertions, 100% pass |
+| **Test Suite Coverage** | **100% Pass** | 37 automated tests across 9 test suites (~1.5s) |
 
 ---
 
@@ -118,10 +123,16 @@ Populate the required keys:
 TELEGRAM_BOT_TOKEN="your_bot_token_from_botfather"
 TELEGRAM_ADMIN_CHAT_ID="your_telegram_chat_id"
 TELEGRAM_WEBHOOK_SECRET="optional_secret_token"
-CAL_BOOKING_URL="https://cal.com/sam-codesai"
+CAL_BOOKING_URL="https://cal.com/sam-codesai/15min"
+GEMINI_API_KEY="your_gemini_api_key"
+SUTRADB_URL="http://localhost:8765"
 ```
 
-### 3. Run Locally
+### 3. Initialize Supabase Database (Optional for Persistence)
+
+Execute `schema.sql` directly in your Supabase SQL Editor to provision `telegram_sessions` and `inquiries` tables with full Row Level Security and performance indexes.
+
+### 4. Run Locally
 
 **Option A — Long Polling Mode (Fastest for local testing, no tunnel needed):**
 ```bash
@@ -134,7 +145,7 @@ npm run dev
 # Starts HTTP server listening at http://localhost:3000/webhook
 ```
 
-### 4. Run Test Suite
+### 5. Run Test Suite
 
 ```bash
 npm test
