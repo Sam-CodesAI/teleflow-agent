@@ -8,7 +8,7 @@ import { InquiryPayload } from "../src/types.js";
 test("LeadQualifierAgent Multi-Turn & Interactive Workflow", async (t) => {
   let capturedInquiry: InquiryPayload | null = null;
   const agent = new LeadQualifierAgent({
-    calBaseUrl: "https://cal.com/samarth/discovery",
+    calBaseUrl: "https://cal.com/sam-codesai/discovery",
     onInquiryQualified: async (payload) => {
       capturedInquiry = payload;
       return "inq-mock-999";
@@ -56,7 +56,7 @@ test("LeadQualifierAgent Multi-Turn & Interactive Workflow", async (t) => {
     assert.strictEqual(res.leadQualified, true);
     assert.strictEqual(res.inquiryId, "inq-mock-999");
     assert.ok(res.bookingUrl);
-    assert.match(res.bookingUrl, /cal\.com\/samarth\/discovery/);
+    assert.match(res.bookingUrl, /cal\.com\/sam-codesai\/discovery/);
     assert.match(res.replyText, /Command Center/);
     assert.ok(capturedInquiry);
     assert.strictEqual(capturedInquiry?.name, "Jane Doe");
@@ -89,12 +89,12 @@ test("Scheduler URL Builder", async (t) => {
       name: "Alex Smith",
       email: "alex@venture.io",
       notes: "Need rapid MVP built",
-      calBaseUrl: "https://cal.com/samarth/discovery",
+      calBaseUrl: "https://cal.com/sam-codesai/discovery",
     });
 
     const parsed = new URL(url);
     assert.strictEqual(parsed.hostname, "cal.com");
-    assert.strictEqual(parsed.pathname, "/samarth/discovery");
+    assert.strictEqual(parsed.pathname, "/sam-codesai/discovery");
     assert.strictEqual(parsed.searchParams.get("name"), "Alex Smith");
     assert.strictEqual(parsed.searchParams.get("email"), "alex@venture.io");
     assert.strictEqual(parsed.searchParams.get("notes"), "Need rapid MVP built");

@@ -118,7 +118,7 @@ Populate the required keys:
 TELEGRAM_BOT_TOKEN="your_bot_token_from_botfather"
 TELEGRAM_ADMIN_CHAT_ID="your_telegram_chat_id"
 TELEGRAM_WEBHOOK_SECRET="optional_secret_token"
-CAL_BOOKING_URL="https://cal.com/samarth/discovery"
+CAL_BOOKING_URL="https://cal.com/sam-codesai"
 ```
 
 ### 3. Run Locally
