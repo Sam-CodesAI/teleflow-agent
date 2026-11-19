@@ -32,14 +32,28 @@ export const DEFAULT_KNOWLEDGE_BASE: KnowledgeItem[] = [
     question: "Who is Samarth?",
     keywords: ["who", "sam", "samarth", "about", "bio"],
     answer:
-      "Samarth Nimangre (Sam) is a 17-year-old student and builder based in Karnataka, India. He builds with curiosity, velocity, and craftsmanship — turning ideas into working digital systems.",
+      "Samarth Nimangre (Sam) is a 17-year-old student and systems engineer based in Karnataka, India. He builds with curiosity, velocity, and craftsmanship — turning complex ideas into resilient production software.",
   },
   {
     id: "contact",
     question: "How to work with Samarth?",
-    keywords: ["hire", "work", "contact", "collaborate", "email"],
+    keywords: ["hire", "work", "contact", "collaborate", "email", "telegram"],
     answer:
       "You can connect directly on Telegram (@Samarth1306), email (samarthknimangre@gmail.com), or submit an inquiry through his portfolio (https://sam-codes.vercel.app).",
+  },
+  {
+    id: "schedule",
+    question: "How to book or schedule a call with Samarth?",
+    keywords: ["call", "schedule", "book", "meeting", "slot", "calendar", "cal"],
+    answer:
+      "You can schedule a direct 15-minute architecture call on Samarth's calendar at https://cal.com/sam-codesai/15min to lock in your slot.",
+  },
+  {
+    id: "projects",
+    question: "What major projects has Samarth built?",
+    keywords: ["projects", "portfolio", "sutradb", "vaniedge", "dokumentko", "case studies"],
+    answer:
+      "Samarth has built several key systems: SutraDB (pure Python vector + BM25 hybrid search engine on PyPI), VaniEdge Voice Platform (sub-second edge voice telephony with Twilio & WebSockets), and Dokumentko (AI document extraction & compliance).",
   },
 ];
 

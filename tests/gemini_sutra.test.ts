@@ -136,4 +136,12 @@ test("LeadQualifierAgent Grounded with SutraDB + Gemini", async (t) => {
     assert.ok(capturedContext);
     assert.match(capturedContext[0], /VaniEdge/);
   });
+
+  await t.test("FAQ lookup returns verified project and scheduling links", async () => {
+    const agent = new LeadQualifierAgent();
+    // Message 1 with schedule question
+    const res = await agent.executeTurn(998877, "How do I schedule a call with Samarth?");
+    assert.strictEqual(res.phase, "DISCOVERY");
+    assert.match(res.replyText, /https:\/\/cal\.com\/sam-codesai\/15min/);
+  });
 });
