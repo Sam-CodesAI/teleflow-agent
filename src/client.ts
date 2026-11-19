@@ -76,7 +76,21 @@ export class TelegramClient {
     if (options?.replyMarkup) payload.reply_markup = options.replyMarkup;
     if (options?.replyToMessageId) payload.reply_to_message_id = options.replyToMessageId;
 
-    return this.call<TelegramMessage>("sendMessage", payload);
+    const res = await this.call<TelegramMessage>("sendMessage", payload);
+
+    // If Markdown parse fails due to unmatched tags/entities, retry automatically without parse_mode
+    if (
+      !res.ok &&
+      payload.parse_mode &&
+      typeof res.description === "string" &&
+      (res.description.includes("can't parse entities") || res.description.includes("entity"))
+    ) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.parse_mode;
+      return this.call<TelegramMessage>("sendMessage", fallbackPayload);
+    }
+
+    return res;
   }
 
   /**

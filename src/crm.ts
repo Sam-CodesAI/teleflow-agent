@@ -81,12 +81,34 @@ export class CRMDispatcher {
     }
 
     try {
+      // 1. Strict sanitization to comply with PostgreSQL check constraints:
+      // - chk_inquiries_name_len: length(trim(name)) >= 1 AND <= 150
+      // - chk_inquiries_service_len: length(service_requested) <= 150
+      // - chk_inquiries_message_len: length(trim(message)) >= 3 AND <= 5000
+      // - chk_inquiries_email_format: email IS NULL OR regex match
+      const sanitizedName = (payload.name?.trim() || "Prospective Client").slice(0, 150);
+      const sanitizedService = (payload.serviceRequested?.trim() || "Custom System Engineering").slice(0, 150);
+      const sanitizedMessage = (payload.message?.trim() || "Lead intake via Teleflow Agent").slice(0, 5000);
+
+      let sanitizedEmail: string | null = null;
+      if (payload.email) {
+        const clean = payload.email.trim();
+        if (/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(clean)) {
+          sanitizedEmail = clean;
+        } else {
+          const match = clean.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+          if (match && /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(match[0])) {
+            sanitizedEmail = match[0];
+          }
+        }
+      }
+
       const basePayload: Record<string, any> = {
-        name: payload.name,
-        email: payload.email,
-        contact_method: payload.contactMethod,
-        service_requested: payload.serviceRequested,
-        message: payload.message,
+        name: sanitizedName,
+        email: sanitizedEmail,
+        contact_method: payload.contactMethod || "Telegram",
+        service_requested: sanitizedService,
+        message: sanitizedMessage,
         status: "NEW",
         user_agent: "telegram_agent",
         private_notes: `[Lead Source: telegram_agent | Chat: ${payload.metadata?.chatId || "direct"}]`,
@@ -99,7 +121,7 @@ export class CRMDispatcher {
         .select("id")
         .single();
 
-      // If source column does not exist (v1 schema), gracefully retry without source
+      // If source column does not exist (v1 schema), retry without source
       if (res.error && res.error.message.includes("source")) {
         res = await this.supabase
           .from("inquiries")
@@ -108,8 +130,26 @@ export class CRMDispatcher {
           .single();
       }
 
+      // If optional column insertion still fails, fall back to minimal required schema
       if (res.error) {
-        return { sink: "supabase", success: false, error: res.error.message };
+        const minimalPayload = {
+          name: sanitizedName,
+          email: sanitizedEmail,
+          contact_method: payload.contactMethod || "Telegram",
+          service_requested: sanitizedService,
+          message: sanitizedMessage,
+          status: "NEW",
+        };
+        const fallbackRes = await this.supabase
+          .from("inquiries")
+          .insert(minimalPayload)
+          .select("id")
+          .single();
+
+        if (fallbackRes.error) {
+          return { sink: "supabase", success: false, error: fallbackRes.error.message };
+        }
+        return { sink: "supabase", success: true, recordId: fallbackRes.data?.id };
       }
 
       return { sink: "supabase", success: true, recordId: res.data?.id };

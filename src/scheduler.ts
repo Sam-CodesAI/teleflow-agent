@@ -18,15 +18,15 @@ export function buildSchedulingUrl(options: SchedulingOptions = {}): string {
   try {
     const url = new URL(baseUrl);
 
-    if (options.name) {
-      url.searchParams.set("name", options.name);
+    if (options.name && options.name.trim()) {
+      url.searchParams.set("name", options.name.trim());
     }
-    if (options.email) {
-      url.searchParams.set("email", options.email);
+    if (options.email && options.email.includes("@") && !options.email.startsWith("@")) {
+      url.searchParams.set("email", options.email.trim());
     }
-    if (options.notes) {
+    if (options.notes && options.notes.trim()) {
       // Truncate notes if necessary to avoid exceeding browser URL length limits
-      url.searchParams.set("notes", options.notes.slice(0, 500));
+      url.searchParams.set("notes", options.notes.trim().slice(0, 500));
     }
 
     return url.toString();

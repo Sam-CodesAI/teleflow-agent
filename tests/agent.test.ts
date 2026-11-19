@@ -299,5 +299,27 @@ test("Durable Supabase Telegram Sessions Backing", async (t) => {
     assert.ok(storedInDb);
     assert.strictEqual(storedInDb.lead_draft.inquiryId, "inq-final-777");
   });
+
+  await t.test("Extracts days timeline and t.me handles reliably", async () => {
+    const agent = new LeadQualifierAgent();
+    // Turn 1: /start
+    await agent.executeTurn("778899", "/start");
+
+    // Turn 2: Service with days timeline and t.me link
+    const res = await agent.executeTurn("778899", "Need an automation system in 5 days, reach me at https://t.me/venture_ceo");
+    assert.strictEqual(res.leadDraft.serviceRequested, "Workflow & Business Automation");
+    assert.strictEqual(res.leadDraft.timeline, "5 days");
+    assert.strictEqual(res.leadDraft.handleOrEmail, "@venture_ceo");
+    assert.strictEqual(res.phase, "CONFIRMED");
+    assert.strictEqual(res.leadQualified, true);
+  });
+
+  await t.test("Responds to /help and /info commands with clear guidance", async () => {
+    const agent = new LeadQualifierAgent();
+    const res = await agent.executeTurn("554433", "/help");
+    assert.match(res.replyText, /Commands/);
+    assert.match(res.replyText, /\/start/);
+    assert.match(res.replyText, /cal\.com\/sam-codesai\/15min/);
+  });
 });
 

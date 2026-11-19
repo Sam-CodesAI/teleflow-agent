@@ -26,6 +26,12 @@ test("Webhook Server & Security Tests", async (t) => {
       assert.strictEqual(data.status, "online");
       assert.strictEqual(data.agent, "teleflow-agent");
       assert.strictEqual(data.version, "2.0.0");
+
+      // Verify trailing slash and query param normalization
+      const resTrailing = await fetch(`http://127.0.0.1:${address.port}/health/?ref=ping`);
+      assert.strictEqual(resTrailing.status, 200);
+      const resApi = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      assert.strictEqual(resApi.status, 200);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
@@ -95,5 +101,31 @@ test("Webhook Server & Security Tests", async (t) => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  await t.test("TelegramClient falls back to plain text when Markdown parsing fails", async () => {
+    let callCount = 0;
+    const sentPayloads: any[] = [];
+
+    const mockClient = new TelegramClient("dummy_token");
+    mockClient.call = async (method: string, payload: any) => {
+      callCount++;
+      sentPayloads.push(payload);
+      if (callCount === 1) {
+        return {
+          ok: false,
+          description: "Bad Request: can't parse entities: Can't find end of italic entity",
+        };
+      }
+      return { ok: true, result: { message_id: 12345 } as any };
+    };
+
+    const res = await mockClient.sendMessage(112233, "Hello _unclosed italic", { parseMode: "Markdown" });
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(callCount, 2);
+    // First attempt included parse_mode
+    assert.strictEqual(sentPayloads[0].parse_mode, "Markdown");
+    // Fallback attempt deleted parse_mode
+    assert.strictEqual(sentPayloads[1].parse_mode, undefined);
   });
 });

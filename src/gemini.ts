@@ -119,16 +119,32 @@ Generate a concise, helpful response representing Samarth:`;
       let replyText = rawText;
       let extracted: GeminiTurnResult["extracted"] = undefined;
 
+      const cleanExtracted = (val?: string | null): string | undefined => {
+        if (!val) return undefined;
+        const trimmed = String(val).trim();
+        const lower = trimmed.toLowerCase();
+        if (
+          lower === "null" ||
+          lower === "none" ||
+          lower === "n/a" ||
+          lower === "undefined" ||
+          lower === ""
+        ) {
+          return undefined;
+        }
+        return trimmed;
+      };
+
       const extractionMatch = rawText.match(/<<<EXTRACTION\s*([\s\S]*?)\s*>>>/);
       if (extractionMatch) {
         replyText = rawText.replace(/<<<EXTRACTION[\s\S]*?>>>/, "").trim();
         try {
           const parsed = JSON.parse(extractionMatch[1]);
           extracted = {
-            serviceRequested: parsed.serviceRequested || undefined,
-            timeline: parsed.timeline || undefined,
-            handleOrEmail: parsed.handleOrEmail || undefined,
-            problemBrief: parsed.problemBrief || undefined,
+            serviceRequested: cleanExtracted(parsed.serviceRequested),
+            timeline: cleanExtracted(parsed.timeline),
+            handleOrEmail: cleanExtracted(parsed.handleOrEmail),
+            problemBrief: cleanExtracted(parsed.problemBrief),
           };
         } catch {
           // Ignored if JSON parsing fails

@@ -59,8 +59,11 @@ export function createBotServer(
     });
 
   const server = http.createServer(async (req, res) => {
+    const rawPath = req.url ? req.url.split("?")[0] : "/";
+    const pathname = (rawPath.replace(/\/+$/, "") || "/").toLowerCase();
+
     // Healthcheck
-    if (req.method === "GET" && (req.url === "/health" || req.url === "/api/health")) {
+    if (req.method === "GET" && (pathname === "/health" || pathname === "/api/health")) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -74,7 +77,7 @@ export function createBotServer(
     }
 
     // Webhook POST
-    if (req.method === "POST" && (req.url === "/webhook" || req.url === "/api/webhook" || req.url === "/")) {
+    if (req.method === "POST" && (pathname === "/webhook" || pathname === "/api/webhook" || pathname === "/")) {
       if (secretToken) {
         const secret = typeof req.headers["x-telegram-bot-api-secret-token"] === "string"
           ? req.headers["x-telegram-bot-api-secret-token"]
@@ -212,7 +215,11 @@ export async function startPolling(agent?: LeadQualifierAgent, client?: Telegram
       const updates = await botClient.getUpdates(offset, 100, 20);
       for (const update of updates) {
         offset = update.update_id + 1;
-        await processTelegramUpdate(update, botAgent, botClient);
+        try {
+          await processTelegramUpdate(update, botAgent, botClient);
+        } catch (updateErr) {
+          console.error(`[Teleflow Poller] Error processing update ${update.update_id}:`, updateErr);
+        }
       }
     } catch (err) {
       console.error("[Teleflow Poller] Error during poll iteration:", err);

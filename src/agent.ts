@@ -328,6 +328,8 @@ export class LeadQualifierAgent {
   }
 
   private extractHandle(text: string): string | undefined {
+    const tmeMatch = text.match(/(?:https?:\/\/)?t\.me\/([a-zA-Z0-9_]{3,32})\b/i);
+    if (tmeMatch) return `@${tmeMatch[1]}`;
     const match = text.match(/(?:^|\s)@([a-zA-Z0-9_]{3,32})\b/);
     return match ? `@${match[1]}` : undefined;
   }
@@ -337,6 +339,8 @@ export class LeadQualifierAgent {
     if (lower.includes("asap") || lower.includes("immediately") || lower.includes("urgent")) {
       return "ASAP / Immediate priority";
     }
+    const dayMatch = text.match(/(\d+)\s*(?:-|to)?\s*(\d*)\s*days?/i);
+    if (dayMatch) return dayMatch[0].trim();
     const weekMatch = text.match(/(\d+)\s*(?:-|to)?\s*(\d*)\s*weeks?/i);
     if (weekMatch) return weekMatch[0].trim();
     const monthMatch = text.match(/(\d+)\s*(?:-|to)?\s*(\d*)\s*months?/i);
@@ -570,21 +574,28 @@ export class LeadQualifierAgent {
     session.phase = "CONFIRMED";
     let inquiryId: string | undefined;
 
+    const clientName = session.leadDraft.name || (session.username ? `@${session.username}` : (session.firstName || "Telegram Client"));
+    const emailCandidate = session.leadDraft.handleOrEmail;
+    const cleanEmail = emailCandidate && /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(emailCandidate.trim())
+      ? emailCandidate.trim()
+      : undefined;
+
+    const clientHandle = session.username
+      ? `@${session.username}`
+      : (session.leadDraft.handleOrEmail?.startsWith("@") ? session.leadDraft.handleOrEmail : undefined);
+    const contactDisplay = clientHandle
+      ? `Telegram (${clientHandle})${cleanEmail ? ` / ${cleanEmail}` : ""}`
+      : (session.leadDraft.handleOrEmail || "Telegram Direct");
+
     if (this.onInquiryQualified) {
       const res = await this.onInquiryQualified({
-        name: session.leadDraft.name || `@${session.username || "client"}`,
-        email:
-          session.leadDraft.handleOrEmail?.includes("@") &&
-          !session.leadDraft.handleOrEmail.startsWith("@")
-            ? session.leadDraft.handleOrEmail
-            : undefined,
-        contactMethod: `Telegram (@${session.username || "client"})${
-          session.leadDraft.handleOrEmail ? ` / ${session.leadDraft.handleOrEmail}` : ""
-        }`,
+        name: clientName,
+        email: cleanEmail,
+        contactMethod: contactDisplay,
         serviceRequested: session.leadDraft.serviceRequested || "Custom System Engineering",
-        message: `[LEAD INTAKE]\n• Service: ${session.leadDraft.serviceRequested}\n• Brief: ${
+        message: `[LEAD INTAKE]\n• Service: ${session.leadDraft.serviceRequested || "Custom System Engineering"}\n• Brief: ${
           session.leadDraft.problemBrief || "Direct qualification"
-        }\n• Timeline: ${session.leadDraft.timeline}`,
+        }\n• Timeline: ${session.leadDraft.timeline || "Flexible"}`,
       });
       if (typeof res === "string") {
         inquiryId = res;
@@ -595,11 +606,9 @@ export class LeadQualifierAgent {
     await this.persistSession(session, context);
 
     const bookingUrl = buildSchedulingUrl({
-      name: session.leadDraft.name || session.username,
-      email: session.leadDraft.handleOrEmail?.includes("@") && !session.leadDraft.handleOrEmail.startsWith("@")
-        ? session.leadDraft.handleOrEmail
-        : undefined,
-      notes: `Service: ${session.leadDraft.serviceRequested} | Timeline: ${session.leadDraft.timeline}`,
+      name: clientName,
+      email: cleanEmail,
+      notes: `Service: ${session.leadDraft.serviceRequested || "Custom System Engineering"} | Timeline: ${session.leadDraft.timeline || "Flexible"}`,
       calBaseUrl: this.calBaseUrl,
     });
 
@@ -649,6 +658,23 @@ export class LeadQualifierAgent {
       };
     }
 
+    // Help command
+    if (lower === "/help" || lower === "/info") {
+      return {
+        replyText:
+          `ℹ️ *Samarth's AI Qualifier Commands:*\n\n` +
+          `• /start or /reset — Start a fresh qualification brief\n` +
+          `• Tap interactive buttons to choose services or target timelines\n` +
+          `• Ask any question about Samarth's engineering, projects, or background\n` +
+          `• Book an architecture call directly at https://cal.com/sam-codesai/15min`,
+        phase: session.phase,
+        leadDraft: session.leadDraft,
+        leadQualified: false,
+        replyMarkup: session.phase === "INITIAL" || session.phase === "DISCOVERY" ? this.getServiceKeyboard() : undefined,
+        latencyMs: Date.now() - start,
+      };
+    }
+
     const email = this.extractEmail(raw);
     const handle = this.extractHandle(raw);
     const timeline = this.extractTimeline(raw);
@@ -663,13 +689,23 @@ export class LeadQualifierAgent {
     }
     if (timeline) session.leadDraft.timeline = timeline;
 
-    // Direct FAQ response check
-    const faqAnswer = await this.queryKnowledge(raw);
-    if (faqAnswer && session.messagesCount === 1) {
+    // Direct FAQ response check for explicit informational queries
+    const staticFaq = this.queryStaticKnowledge(raw);
+    const isDirectFaq = !!staticFaq && (
+      lower.startsWith("who") ||
+      lower.startsWith("how to") ||
+      lower.startsWith("how do") ||
+      lower.includes("schedule") ||
+      lower.includes("book a call") ||
+      lower.includes("calendar") ||
+      lower.includes("contact")
+    );
+
+    if (isDirectFaq && staticFaq && (session.phase === "INITIAL" || session.phase === "DISCOVERY")) {
       session.phase = "DISCOVERY";
       await this.persistSession(session, context);
       return {
-        replyText: `${faqAnswer}\n\nAre you looking to build or automate something specific right now? Pick an option or tell me about your project!`,
+        replyText: `${staticFaq}\n\nAre you looking to build or automate something specific right now? Pick an option or tell me about your project!`,
         phase: session.phase,
         leadDraft: session.leadDraft,
         leadQualified: false,
@@ -677,6 +713,8 @@ export class LeadQualifierAgent {
         latencyMs: Date.now() - start,
       };
     }
+
+    const faqAnswer = isDirectFaq ? staticFaq : null;
 
     let replyText = "";
     let leadQualified = false;
@@ -748,6 +786,11 @@ export class LeadQualifierAgent {
       }
 
       case "QUALIFICATION": {
+        if (faqAnswer) {
+          replyText = `${faqAnswer}\n\nTo continue with your brief for *${session.leadDraft.serviceRequested || "your project"}*, please share your best contact email or Telegram handle:`;
+          break;
+        }
+
         if (!session.leadDraft.timeline) {
           session.leadDraft.timeline = timeline || raw;
         }

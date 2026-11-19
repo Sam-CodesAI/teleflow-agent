@@ -76,6 +76,43 @@ test("Gemini Intelligence Client & Entity Extraction", async (t) => {
     assert.strictEqual(res.extracted?.timeline, "2 weeks");
     assert.strictEqual(res.extracted?.handleOrEmail, "client@venture.co");
   });
+
+  await t.test("Filters string literal 'null', 'none', 'n/a' out of extracted entities", async () => {
+    const gemini = new GeminiClient({ apiKey: "dummy_key" });
+    // Mock fetch on global scope or test parsing logic
+    const dummyRaw = `I can help you build an MVP!
+<<<EXTRACTION
+{
+  "serviceRequested": "Rapid MVP",
+  "timeline": "null",
+  "handleOrEmail": "none",
+  "problemBrief": "n/a"
+}
+>>>`;
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: dummyRaw }] } }],
+      }),
+    }) as any;
+
+    try {
+      const res = await gemini.generateTurn({
+        userMessage: "I want an MVP",
+        currentPhase: "DISCOVERY",
+      });
+
+      assert.ok(res);
+      assert.strictEqual(res.extracted?.serviceRequested, "Rapid MVP");
+      assert.strictEqual(res.extracted?.timeline, undefined);
+      assert.strictEqual(res.extracted?.handleOrEmail, undefined);
+      assert.strictEqual(res.extracted?.problemBrief, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 test("LeadQualifierAgent Grounded with SutraDB + Gemini", async (t) => {
