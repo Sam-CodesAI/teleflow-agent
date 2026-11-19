@@ -18,6 +18,8 @@ export * from "./client.js";
 export * from "./agent.js";
 export * from "./scheduler.js";
 export * from "./crm.js";
+export * from "./sutra.js";
+export * from "./gemini.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;

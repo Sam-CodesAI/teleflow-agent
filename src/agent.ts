@@ -16,6 +16,8 @@ import {
   LeadDraft,
 } from "./types.js";
 import { buildSchedulingUrl } from "./scheduler.js";
+import { SutraDBClient } from "./sutra.js";
+import { GeminiClient } from "./gemini.js";
 
 export const DEFAULT_KNOWLEDGE_BASE: KnowledgeItem[] = [
   {
@@ -98,6 +100,10 @@ export interface AgentOptions {
   supabaseServiceRoleKey?: string;
   supabaseClient?: SupabaseClient;
   cacheCapacity?: number;
+  sutraClient?: SutraDBClient;
+  geminiClient?: GeminiClient;
+  sutraUrl?: string;
+  geminiApiKey?: string;
 }
 
 export class LeadQualifierAgent {
@@ -106,12 +112,26 @@ export class LeadQualifierAgent {
   private onInquiryQualified?: (payload: InquiryPayload) => Promise<string | void>;
   private calBaseUrl?: string;
   private supabase: SupabaseClient | null = null;
+  private sutraClient: SutraDBClient | null = null;
+  private geminiClient: GeminiClient | null = null;
 
   constructor(options?: AgentOptions) {
     this.knowledge = options?.knowledge || DEFAULT_KNOWLEDGE_BASE;
     this.onInquiryQualified = options?.onInquiryQualified;
     this.calBaseUrl = options?.calBaseUrl;
     this.sessions = new SessionLruCache<TelegramSession>(options?.cacheCapacity ?? 1000);
+
+    if (options?.sutraClient) {
+      this.sutraClient = options.sutraClient;
+    } else if (options?.sutraUrl || process.env.SUTRADB_URL) {
+      this.sutraClient = new SutraDBClient({ baseUrl: options?.sutraUrl || process.env.SUTRADB_URL });
+    }
+
+    if (options?.geminiClient) {
+      this.geminiClient = options.geminiClient;
+    } else if (options?.geminiApiKey || process.env.GEMINI_API_KEY) {
+      this.geminiClient = new GeminiClient({ apiKey: options?.geminiApiKey || process.env.GEMINI_API_KEY });
+    }
 
     const sbUrl =
       options?.supabaseUrl ||
@@ -138,6 +158,14 @@ export class LeadQualifierAgent {
 
   get isSupabaseConfigured(): boolean {
     return this.supabase !== null;
+  }
+
+  get isGeminiConfigured(): boolean {
+    return this.geminiClient?.isConfigured ?? false;
+  }
+
+  get isSutraConfigured(): boolean {
+    return this.sutraClient !== null;
   }
 
   get cacheSize(): number {
@@ -326,7 +354,21 @@ export class LeadQualifierAgent {
     return "Custom System Engineering";
   }
 
-  private queryKnowledge(text: string): string | null {
+  private async queryKnowledge(text: string): Promise<string | null> {
+    if (this.sutraClient) {
+      try {
+        const hits = await this.sutraClient.search(text, 1);
+        if (hits.length > 0 && hits[0].score > 0.015) {
+          return hits[0].text;
+        }
+      } catch {
+        // Fall back to static
+      }
+    }
+    return this.queryStaticKnowledge(text);
+  }
+
+  private queryStaticKnowledge(text: string): string | null {
     const lower = text.toLowerCase().trim();
     let best = null;
     let maxScore = 0;
@@ -608,7 +650,7 @@ export class LeadQualifierAgent {
     if (timeline) session.leadDraft.timeline = timeline;
 
     // Direct FAQ response check
-    const faqAnswer = this.queryKnowledge(raw);
+    const faqAnswer = await this.queryKnowledge(raw);
     if (faqAnswer && session.messagesCount === 1) {
       session.phase = "DISCOVERY";
       await this.persistSession(session, context);
@@ -640,16 +682,52 @@ export class LeadQualifierAgent {
       }
 
       case "DISCOVERY": {
-        session.leadDraft.serviceRequested = this.matchService(raw);
-        session.leadDraft.problemBrief = raw;
+        let generatedReply: string | null = null;
+        if (this.geminiClient?.isConfigured) {
+          try {
+            const contextHits = this.sutraClient ? await this.sutraClient.search(raw, 2) : [];
+            const geminiRes = await this.geminiClient.generateTurn({
+              userMessage: raw,
+              userName: session.leadDraft.name,
+              currentPhase: "DISCOVERY",
+              contextChunks: contextHits.map((h) => h.text),
+            });
+
+            if (geminiRes) {
+              generatedReply = geminiRes.replyText;
+              if (geminiRes.extracted?.serviceRequested) {
+                session.leadDraft.serviceRequested = geminiRes.extracted.serviceRequested;
+              }
+              if (geminiRes.extracted?.timeline) {
+                session.leadDraft.timeline = geminiRes.extracted.timeline;
+              }
+              if (geminiRes.extracted?.handleOrEmail) {
+                session.leadDraft.handleOrEmail = geminiRes.extracted.handleOrEmail;
+              }
+              if (geminiRes.extracted?.problemBrief) {
+                session.leadDraft.problemBrief = geminiRes.extracted.problemBrief;
+              }
+            }
+          } catch {
+            // Graceful fallback to deterministic logic
+          }
+        }
+
+        if (!session.leadDraft.serviceRequested) {
+          session.leadDraft.serviceRequested = this.matchService(raw);
+        }
+        if (!session.leadDraft.problemBrief) {
+          session.leadDraft.problemBrief = raw;
+        }
 
         if (session.leadDraft.handleOrEmail && session.leadDraft.timeline) {
           return this.finalizeLead(session, start, context);
         } else {
           session.phase = "QUALIFICATION";
-          replyText =
-            `Understood! For *${session.leadDraft.serviceRequested}*, Samarth focuses on rapid turnaround and reliable production architecture.\n\n` +
-            `What is your target launch timeline?`;
+          replyText = generatedReply
+            ? `${generatedReply}\n\nWhat is your target launch timeline?`
+            : `Understood! For *${session.leadDraft.serviceRequested}*, Samarth focuses on rapid turnaround and reliable production architecture.\n\n` +
+              `What is your target launch timeline?`;
           replyMarkup = this.getTimelineKeyboard();
         }
         break;
@@ -665,15 +743,47 @@ export class LeadQualifierAgent {
           return this.finalizeLead(session, start, context);
         }
 
-        replyText =
-          `Timeline noted: *${session.leadDraft.timeline}*.\n\n` +
-          `What is your best contact email or handle so Samarth can deliver your technical specification?`;
+        let qualReply: string | null = null;
+        if (this.geminiClient?.isConfigured) {
+          try {
+            const geminiRes = await this.geminiClient.generateTurn({
+              userMessage: raw,
+              userName: session.leadDraft.name,
+              currentPhase: "QUALIFICATION",
+            });
+            if (geminiRes) {
+              qualReply = geminiRes.replyText;
+              if (geminiRes.extracted?.handleOrEmail) {
+                session.leadDraft.handleOrEmail = geminiRes.extracted.handleOrEmail;
+                return this.finalizeLead(session, start, context);
+              }
+            }
+          } catch {
+            // Graceful fallback
+          }
+        }
+
+        replyText = qualReply
+          ? `${qualReply}\n\nWhat is your best contact email or handle so Samarth can deliver your technical specification?`
+          : `Timeline noted: *${session.leadDraft.timeline}*.\n\n` +
+            `What is your best contact email or handle so Samarth can deliver your technical specification?`;
         break;
       }
 
       case "CONFIRMED": {
         if (faqAnswer) {
           replyText = `${faqAnswer}\n\nYour earlier project brief is already saved in Samarth's queue. Anything else you'd like to attach?`;
+        } else if (this.geminiClient?.isConfigured) {
+          try {
+            const geminiRes = await this.geminiClient.generateTurn({
+              userMessage: raw,
+              userName: session.leadDraft.name,
+              currentPhase: "CONFIRMED",
+            });
+            replyText = geminiRes?.replyText || `Got it! I've noted this additional detail for your project brief. Samarth will review it shortly.`;
+          } catch {
+            replyText = `Got it! I've noted this additional detail for your project brief. Samarth will review it shortly.`;
+          }
         } else {
           replyText = `Got it! I've noted this additional detail for your project brief. Samarth will review it shortly.`;
         }
