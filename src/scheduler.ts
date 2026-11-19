@@ -5,7 +5,7 @@
 
 import { SchedulingOptions } from "./types.js";
 
-const DEFAULT_CAL_BASE = process.env.CAL_BOOKING_URL || "https://cal.com/sam-codesai";
+const DEFAULT_CAL_BASE = process.env.CAL_BOOKING_URL || "https://cal.com/sam-codesai/15min";
 const FALLBACK_PORTFOLIO_CONTACT = "https://sam-codes.vercel.app/#contact";
 
 /**
